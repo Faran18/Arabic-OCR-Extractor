@@ -1,0 +1,10 @@
+# Virtual Environment
+.venv/
+
+# Project Folders
+input/
+output/
+
+# Python cache (Good practice to ignore these too)
+__pycache__/
+*.pyc
