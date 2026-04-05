@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arabic OCR Extractor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:    #0f0e0c;
+    --paper:  #f5f0e8;
+    --accent: #c0392b;
+    --gold:   #b8860b;
+    --line:   #d4c9b0;
+    --muted:  #7a6f5e;
+    --card:   #faf7f2;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Amiri', serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Ruled-paper background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(
+        transparent,
+        transparent 39px,
+        var(--line) 39px,
+        var(--line) 40px
+      );
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 48px 0 32px;
+    border-bottom: 3px double var(--gold);
+    margin-bottom: 40px;
+    text-align: center;
+  }
+
+  header h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+
+  header h1 span {
+    color: var(--accent);
+  }
+
+  header p {
+    margin-top: 10px;
+    font-size: 1.05rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    direction: ltr;
+  }
+
+  /* ── Drop zones ── */
+  .upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  @media (max-width: 560px) {
+    .upload-grid { grid-template-columns: 1fr; }
+    header h1 { font-size: 2rem; }
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--line);
+    border-radius: 4px;
+    background: var(--card);
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.over {
+    border-color: var(--gold);
+    background: #fdf8ee;
+  }
+
+  .drop-zone.filled {
+    border-color: var(--accent);
+    border-style: solid;
+  }
+
+  .drop-zone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .drop-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .drop-sub {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    direction: ltr;
+  }
+
+  .drop-filename {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent);
+    direction: ltr;
+    word-break: break-all;
+  }
+
+  /* ── Submit button ── */
+  .btn-run {
+    width: 100%;
+    padding: 16px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Amiri', serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: background 0.2s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-run:hover:not(:disabled) { background: #2c2b28; }
+  .btn-run:active:not(:disabled) { transform: scale(0.99); }
+  .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Progress ── */
+  .progress-wrap {
+    display: none;
+    margin-top: 24px;
+  }
+
+  .progress-wrap.visible { display: block; }
+
+  .progress-bar-track {
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    animation: indeterminate 1.4s infinite ease-in-out;
+  }
+
+  @keyframes indeterminate {
+    0%   { transform: translateX(-100%); width: 60%; }
+    100% { transform: translateX(200%);  width: 60%; }
+  }
+
+  .progress-bar-fill.done {
+    animation: none;
+    width: 100%;
+    background: #27ae60;
+  }
+
+  .progress-log {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    direction: ltr;
+    min-height: 20px;
+  }
+
+  /* ── Results ── */
+  .results {
+    display: none;
+    margin-top: 32px;
+    border-top: 3px double var(--gold);
+    padding-top: 28px;
+  }
+
+  .results.visible { display: block; }
+
+  .results-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .stats {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    direction: ltr;
+    margin-bottom: 20px;
+  }
+
+  .dl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .dl-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 12px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+  }
+
+  .dl-card:hover {
+    border-color: var(--accent);
+    box-shadow: 3px 3px 0 var(--accent);
+  }
+
+  .dl-card .ext {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: 'Amiri', serif;
+  }
+
+  /* ── Error ── */
+  .error-box {
+    display: none;
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: #fdf2f2;
+    border: 1.5px solid var(--accent);
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    direction: ltr;
+  }
+
+  .error-box.visible { display: block; }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 60px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--line);
+    direction: ltr;
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Arabic OCR <span>Extractor</span></h1>
+    <p>scan image + reference pdf → matched text extraction</p>
+  </header>
+
+  <div class="upload-grid">
+    <div class="drop-zone" id="zone-input">
+      <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.bmp,.tiff,.pdf">
+      <span class="drop-icon">🖼</span>
+      <span class="drop-label">Input File</span>
+      <span class="drop-sub">scan image or PDF</span>
+      <div class="drop-filename" id="name-input"></div>
+    </div>
+
+    <div class="drop-zone" id="zone-ref">
+      <input type="file" id="file-ref" accept=".pdf">
+      <span class="drop-icon">📄</span>
+      <span class="drop-label">Reference PDF</span>
+      <span class="drop-sub">optional — for matching</span>
+      <div class="drop-filename" id="name-ref"></div>
+    </div>
+  </div>
+
+  <button class="btn-run" id="btn-run" disabled>Extract Text</button>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-log" id="progress-log">Processing…</div>
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+
+  <div class="results" id="results">
+    <div class="results-title">Results</div>
+    <div class="stats" id="stats"></div>
+    <div class="dl-grid" id="dl-grid"></div>
+  </div>
+
+  <footer>Arabic OCR Extractor — FastAPI + EasyOCR</footer>
+</div>
+
+<script>
+  const inputEl  = document.getElementById('file-input');
+  const refEl    = document.getElementById('file-ref');
+  const btnRun   = document.getElementById('btn-run');
+  const nameIn   = document.getElementById('name-input');
+  const nameRef  = document.getElementById('name-ref');
+  const zoneIn   = document.getElementById('zone-input');
+  const zoneRef  = document.getElementById('zone-ref');
+  const progWrap = document.getElementById('progress-wrap');
+  const progFill = document.getElementById('progress-fill');
+  const progLog  = document.getElementById('progress-log');
+  const errorBox = document.getElementById('error-box');
+  const results  = document.getElementById('results');
+  const statsEl  = document.getElementById('stats');
+  const dlGrid   = document.getElementById('dl-grid');
+
+  const FILE_ICONS = { html: '🌐', txt: '📝', pdf: '📋', summary: '📊' };
+
+  function updateBtn() {
+    btnRun.disabled = !inputEl.files.length;
+  }
+
+  inputEl.addEventListener('change', () => {
+    if (inputEl.files[0]) {
+      nameIn.textContent = inputEl.files[0].name;
+      zoneIn.classList.add('filled');
+    }
+    updateBtn();
+  });
+
+  refEl.addEventListener('change', () => {
+    if (refEl.files[0]) {
+      nameRef.textContent = refEl.files[0].name;
+      zoneRef.classList.add('filled');
+    }
+  });
+
+  // Drag-and-drop
+  [zoneIn, zoneRef].forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('over');
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const isRef = zone === zoneRef;
+      const el = isRef ? refEl : inputEl;
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      el.files = dt.files;
+      el.dispatchEvent(new Event('change'));
+    });
+  });
+
+  btnRun.addEventListener('click', async () => {
+    errorBox.classList.remove('visible');
+    results.classList.remove('visible');
+    progWrap.classList.add('visible');
+    progFill.style.animation = '';
+    progFill.classList.remove('done');
+    progLog.textContent = 'Uploading files…';
+    btnRun.disabled = true;
+
+    const fd = new FormData();
+    fd.append('input_file', inputEl.files[0]);
+    if (refEl.files[0]) fd.append('reference_pdf', refEl.files[0]);
+
+    try {
+      progLog.textContent = 'Running OCR and matching…';
+      const res  = await fetch('/process', { method: 'POST', body: fd });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.detail || 'Server error');
+
+      progFill.classList.add('done');
+      progLog.textContent = `Done — ${data.ocr_lines} OCR lines, ${data.matched} matched`;
+
+      // Build download cards
+      dlGrid.innerHTML = '';
+      const labels = { html: 'result.html', txt: 'result.txt', summary: 'summary.txt', pdf: 'result.pdf' };
+      for (const [key, url] of Object.entries(data.outputs)) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = labels[key] || key;
+        a.className = 'dl-card';
+        a.innerHTML = `<span class="ext">${key.toUpperCase()}</span><span>${labels[key]}</span>`;
+        dlGrid.appendChild(a);
+      }
+
+      statsEl.textContent = `ocr_lines=${data.ocr_lines}  matched=${data.matched}`;
+      results.classList.add('visible');
+
+    } catch (err) {
+      progWrap.classList.remove('visible');
+      errorBox.textContent = '⚠ ' + err.message;
+      errorBox.classList.add('visible');
+    } finally {
+      btnRun.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

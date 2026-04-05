@@ -7,7 +7,6 @@ def detect_alignment(bbox, page_width):
     page_center = page_width / 2
     right_gap   = page_width - x1
     left_gap    = x0
-
     if abs(center_x - page_center) < page_width * 0.1:
         return "center"
     elif right_gap < left_gap:
@@ -18,7 +17,6 @@ def detect_alignment(bbox, page_width):
 
 def export_to_html(matched_lines, output_path="output/result.html"):
     os.makedirs("output", exist_ok=True)
-
     html = ["""<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -43,8 +41,8 @@ def export_to_html(matched_lines, output_path="output/result.html"):
       font-size: 22px;
       line-height: 2.0;
       color: #1a1a1a;
-      text-align: right;     /* Arabic is right-aligned */
-      border-bottom: 1px solid #eee;   /* mimic notebook lines */
+      text-align: right;
+      border-bottom: 1px solid #eee;
       padding: 4px 0;
     }
     .dim { color: #bbb; }
@@ -53,7 +51,6 @@ def export_to_html(matched_lines, output_path="output/result.html"):
 <body>
 <div class="page">
 """]
-
     for line in matched_lines:
         text       = line["text"]
         confidence = line.get("confidence", 1.0)
@@ -63,26 +60,27 @@ def export_to_html(matched_lines, output_path="output/result.html"):
             f'title="{confidence:.0%} confident">'
             f'{text}</div>\n'
         )
-
     html.append("</div>\n</body>\n</html>")
-
     with open(output_path, "w", encoding="utf-8") as f:
         f.writelines(html)
     print(f"   → HTML saved: {output_path}")
 
+
 def export_to_text(matched_lines, output_path="output/result.txt"):
     os.makedirs("output", exist_ok=True)
-
     with open(output_path, "w", encoding="utf-8") as f:
         for line in matched_lines:
             f.write(line["text"] + "\n")
-
     print(f"   → Text saved: {output_path}")
+
+
+def export_to_pdf(matched_lines, source_pdf_path, output_path="output/result.pdf"):
+    from pdf_handler import build_matched_pdf
+    return build_matched_pdf(source_pdf_path, matched_lines, output_path)
 
 
 def export_summary(matched_lines, output_path="output/summary.txt"):
     os.makedirs("output", exist_ok=True)
-
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("LINE SUMMARY\n")
         f.write("=" * 60 + "\n\n")
@@ -92,5 +90,4 @@ def export_summary(matched_lines, output_path="output/summary.txt"):
             f.write(f"  Confidence: {line.get('confidence', 'N/A')}\n")
             f.write(f"  BBox:       {line.get('bbox')}\n")
             f.write(f"  Match score:{line.get('match_score', 'N/A')}\n\n")
-
     print(f"   → Summary saved: {output_path}")

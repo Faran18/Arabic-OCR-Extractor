@@ -1,10 +1,16 @@
 # Virtual Environment
-.venv/
+venv/
 
 # Project Folders
 input/
 output/
+uploads/
 
+scan.jpeg
+scan2.png
+reference.pdf
+scan2.jpeg
 # Python cache (Good practice to ignore these too)
 __pycache__/
 *.pyc
+
